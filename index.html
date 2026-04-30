@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Digital Logic Lab</title>
+    <style>
+        :root {
+            --primary: #38bdf8;
+            --success: #22c55e;
+            --bg: #0f172a;
+            --card: #1e293b;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            touch-action: manipulation;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--card);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            box-sizing: border-box;
+        }
+
+        canvas {
+            background: #020617;
+            border-radius: 8px;
+            width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        button {
+            background: #334155;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button.active {
+            background: var(--success);
+            box-shadow: 0 0 15px var(--success);
+        }
+
+        select {
+            background: #0f172a;
+            color: var(--primary);
+            padding: 12px;
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+            font-weight: bold;
+            appearance: none;
+        }
+
+        .output-display {
+            text-align: center;
+            font-family: monospace;
+            font-size: 1.5rem;
+            color: var(--primary);
+            padding: 10px;
+            background: #020617;
+            border-radius: 8px;
+        }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.2rem; }
+            .control-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="margin-bottom: 15px; letter-spacing: 1px;">DIGITAL LOGIC EXPLORER</h1>
+
+    <div class="container">
+        <canvas id="logicCanvas" width="800" height="400"></canvas>
+        
+        <div class="control-grid">
+            <div class="input-group">
+                <span class="label">Primary Inputs</span>
+                <button id="btnA" onclick="toggleInput('A')">A: 0</button>
+                <button id="btnB" onclick="toggleInput('B')">B: 0</button>
+            </div>
+
+            <div class="input-group" id="muxControls" style="display:none;">
+                <span class="label">MUX Select (S0)</span>
+                <button id="btnS" onclick="toggleInput('S')">S: 0</button>
+            </div>
+
+            <div class="input-group">
+                <span class="label">Component Select</span>
+                <select id="compType" onchange="updateComponent(this.value)">
+                    <optgroup label="Basic Gates">
+                        <option value="AND">AND GATE</option>
+                        <option value="OR">OR GATE</option>
+                        <option value="NOT">NOT GATE</option>
+                    </optgroup>
+                    <optgroup label="Universal Gates">
+                        <option value="NAND">NAND GATE</option>
+                        <option value="NOR">NOR GATE</option>
+                    </optgroup>
+                    <optgroup label="Advanced">
+                        <option value="XOR">XOR GATE</option>
+                        <option value="MUX">2-to-1 MUX</option>
+                        <option value="DEMUX">1-to-2 DEMUX</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <span class="label">Logic Output</span>
+                <div id="status" class="output-display">Q: 0</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('logicCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let state = {
+        A: false,
+        B: false,
+        S: false, // Select bit for MUX/DEMUX
+        type: 'AND',
+        out1: false,
+        out2: false // For DEMUX
+    };
+
+    function toggleInput(id) {
+        state[id] = !state[id];
+        const btn = document.getElementById('btn' + id);
+        btn.innerText = `${id}: ${state[id] ? '1' : '0'}`;
+        btn.classList.toggle('active', state[id]);
+        calculate();
+    }
+
+    function updateComponent(val) {
+        state.type = val;
+        document.getElementById('muxControls').style.display = 
+            (val === 'MUX' || val === 'DEMUX') ? 'flex' : 'none';
+        
+        // Disable Input B button visually if NOT gate is selected
+        document.getElementById('btnB').style.opacity = (val === 'NOT') ? '0.3' : '1';
+        document.getElementById('btnB').disabled = (val === 'NOT');
+        
+        calculate();
+    }
+
+    function calculate() {
+        const { A, B, S, type } = state;
+        
+        switch(type) {
+            case 'AND': state.out1 = A && B; break;
+            case 'OR':  state.out1 = A || B; break;
+            case 'NOT': state.out1 = !A; break;
+            case 'NAND': state.out1 = !(A && B); break;
+            case 'NOR':  state.out1 = !(A || B); break;
+            case 'XOR':  state.out1 = A ^ B; break;
+            case 'MUX':  state.out1 = S ? B : A; break;
+            case 'DEMUX': 
+                state.out1 = !S ? A : false;
+                state.out2 = S ? A : false;
+                break;
+        }
+        
+        const status = document.getElementById('status');
+        status.innerText = (type === 'DEMUX') ? `Q0:${state.out1 ? 1:0} Q1:${state.out2 ? 1:0}` : `Q: ${state.out1 ? 1:0}`;
+        draw();
+    }
+
+    function drawWire(x1, y1, x2, y2, active) {
+        ctx.beginPath();
+        ctx.strokeStyle = active ? "#22c55e" : "#334155";
+        ctx.lineWidth = 4;
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        if(active) {
+            ctx.shadowBlur = 15; ctx.shadowColor = "#22c55e"; ctx.stroke(); ctx.shadowBlur = 0;
+        }
+    }
+
+    function drawGateShape() {
+        const x = 350, y = 160;
+        ctx.strokeStyle = "#38bdf8";
+        ctx.fillStyle = "#1e293b";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+
+        if (state.type === 'AND' || state.type === 'NAND') {
+            ctx.moveTo(x, y); ctx.lineTo(x+40, y);
+            ctx.arc(x+40, y+40, 40, -Math.PI/2, Math.PI/2);
+            ctx.lineTo(x, y+80); ctx.closePath();
+            if(state.type === 'NAND') { ctx.stroke(); ctx.beginPath(); ctx.arc(x+88, y+40, 7, 0, Math.PI*2); }
+        } else if (state.type === 'OR' || state.type === 'NOR' || state.type === 'XOR') {
+            if(state.type === 'XOR') { // Extra curve for XOR
+                ctx.moveTo(x-10, y); ctx.quadraticCurveTo(x+20, y+40, x-10, y+80); ctx.stroke();
+            }
+            ctx.beginPath(); ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x+30, y+40, x, y+80);
+            ctx.quadraticCurveTo(x+60, y+80, x+100, y+40);
+            ctx.quadraticCurveTo(x+60, y, x, y);
+            if(state.type === 'NOR') { ctx.stroke(); ctx.beginPath(); ctx.arc(x+108, y+40, 7, 0, Math.PI*2); }
+        } else if (state.type === 'NOT') {
+            ctx.moveTo(x, y); ctx.lineTo(x+70, y+40); ctx.lineTo(x, y+80); ctx.closePath();
+            ctx.stroke(); ctx.beginPath(); ctx.arc(x+78, y+40, 7, 0, Math.PI*2);
+        } else { // MUX / DEMUX Box
+            ctx.rect(x, y-20, 100, 120);
+        }
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.font = "bold 14px sans-serif";
+        ctx.fillText(state.type, x+45, y+45);
+    }
+
+    function drawLED(x, y, active, label) {
+        ctx.fillStyle = active ? "#fbbf24" : "#1e293b";
+        if(active) { ctx.shadowBlur = 30; ctx.shadowColor = "#fbbf24"; }
+        ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0; ctx.fillStyle = "#fff"; ctx.fillText(label, x, y+40);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = "center";
+        
+        // Input labels
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillText("A", 50, 130);
+        if(state.type !== 'NOT') ctx.fillText(state.type === 'DEMUX' ? "" : "B", 50, 270);
+        if(state.type === 'MUX' || state.type === 'DEMUX') ctx.fillText("SEL", 350, 310);
+
+        // Wiring
+        drawWire(70, 130, 350, 175, state.A); // A connection
+        if(state.type !== 'NOT' && state.type !== 'DEMUX') drawWire(70, 270, 350, 225, state.B);
+        if(state.type === 'MUX' || state.type === 'DEMUX') drawWire(350, 320, 400, 260, state.S);
+
+        drawGateShape();
+
+        // Output LEDs
+        if(state.type === 'DEMUX') {
+            drawWire(450, 180, 650, 130, state.out1);
+            drawWire(450, 220, 650, 270, state.out2);
+            drawLED(680, 130, state.out1, "Q0");
+            drawLED(680, 270, state.out2, "Q1");
+        } else {
+            drawWire(450, 200, 650, 200, state.out1);
+            drawLED(680, 200, state.out1, "OUTPUT");
+        }
+    }
+
+    calculate();
+</script>
+</body>
+</html>
